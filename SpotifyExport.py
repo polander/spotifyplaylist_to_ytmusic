@@ -1,4 +1,4 @@
-from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy.oauth2 import SpotifyOAuth
 import spotipy
 import settings
 import html
@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 class Spotify:
     def __init__(self):
         conf = settings['spotify']
-        client_credentials_manager = SpotifyClientCredentials(client_id=conf['client_id'], client_secret=conf['client_secret'])
+        client_credentials_manager = SpotifyOAuth(client_id=conf['client_id'], client_secret=conf['client_secret'], scope="user-library-read", redirect_uri="http://localhost")
         self.api = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
     def getSpotifyPlaylist(self, url):
@@ -30,6 +30,23 @@ class Spotify:
             print(f"Spotify tracks: {len(tracks)}/{total}")
 
         return {'tracks': tracks, 'name': name, 'description': html.unescape(results['description'])}
+
+    def getSpotifyLikedTracks(self):
+        results = []
+        playlists = self.api.current_user_saved_tracks(20)
+        while playlists:
+            for i, playlist in enumerate(playlists['items']):
+
+                result = build_result(playlist);
+
+                results.append(result)
+
+            if playlists['next']:
+                playlists = self.api.next(playlists)
+            else:
+                playlists = None
+
+        return results
 
     def getUserPlaylists(self, user):
         pl = self.api.user_playlists(user)['items']
@@ -60,19 +77,26 @@ class Spotify:
 def build_results(tracks, album=None):
     results = []
     for track in tracks:
-        if 'track' in track:
-            track = track['track']
-        if not track or track['duration_ms'] == 0:
-            continue
-        album_name = album if album else track['album']['name']
-        results.append({
-            'artist': ' '.join([artist['name'] for artist in track['artists']]),
-            'name': track['name'],
-            'album': album_name,
-            'duration': track['duration_ms']/1000
-        })
+
+        result = build_result(track, album)
+
+        if result is not None:
+            results.append(result)
 
     return results
+
+def build_result(track, album=None):
+    if 'track' in track:
+        track = track['track']
+    
+    album_name = album if album else track['album']['name']
+
+    return {
+        'artist': ' '.join([artist['name'] for artist in track['artists']]),
+        'name': track['name'],
+        'album': album_name,
+        'duration': track['duration_ms']/1000
+    }
 
 
 def get_id_from_url(url):

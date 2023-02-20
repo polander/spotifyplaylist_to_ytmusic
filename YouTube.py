@@ -17,6 +17,12 @@ class YTMusicTransfer:
 
     def create_playlist(self, name, info, privacy="PRIVATE", tracks=None):
         return self.api.create_playlist(name, info, privacy, video_ids=tracks)
+    
+    def rate_song(self, id, rating):
+        return self.api.rate_song(id, rating)
+
+    def get_liked_songs(self, limit = 500):
+        return self.api.get_liked_songs(limit)
 
     def get_best_fit_song_id(self, results, song):
         match_score = {}
@@ -26,7 +32,7 @@ class YTMusicTransfer:
                 continue
 
             durationMatch = None
-            if 'duration' in res and res['duration']:
+            if 'duration' in res and res['duration'] and song['duration']:
                 durationItems = res['duration'].split(':')
                 duration = int(durationItems[0]) * 60 + int(durationItems[1])
                 durationMatch = 1 - abs(duration - song['duration']) * 2 / song['duration']
@@ -130,12 +136,31 @@ def get_args():
     parser.add_argument("-p", "--public", action='store_true', help="Make the playlist public. Default: private")
     parser.add_argument("-r", "--remove", action='store_true', help="Remove playlists with specified regex pattern.")
     parser.add_argument("-a", "--all", action='store_true', help="Transfer all public playlists of the specified user (Spotify User ID).")
+    parser.add_argument("-l", "--like", action='store_true', help="Transfer likes of the specified user (Spotify User ID).")
     return parser.parse_args()
 
 
 def main():
     args = get_args()
     ytmusic = YTMusicTransfer()
+
+    if args.like:
+        tracks = Spotify().getSpotifyLikedTracks()
+        print(tracks)
+        videoIds = ytmusic.search_songs(tracks)
+        print(videoIds)
+        liked = []
+        c = 0
+        for s in ytmusic.get_liked_songs(1500).values():
+            if c == 6:
+                for cc in s:
+                    liked.append(cc.get('videoId'))
+            c += 1
+
+        for id in videoIds:
+            if id not in liked:
+                res = ytmusic.rate_song(id, 'LIKE')
+        return
 
     if args.all:
         s = Spotify()
@@ -154,6 +179,7 @@ def main():
                 print(playlist_id)
             except Exception as ex:
                 print("Could not transfer playlist " + p['name'] + ". Exception" + str(ex))
+
         return
 
     if args.remove:
